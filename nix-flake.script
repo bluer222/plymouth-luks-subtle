@@ -2,7 +2,7 @@
 #   firmware logo at ACPI BGRT x/y offsets
 #   throbber at HorizontalAlignment=.5, VerticalAlignment=.7
 #   watermark (Nix flake) at WatermarkHorizontalAlignment=.5, WatermarkVerticalAlignment=.96
-# LUKS: swap the white flake for the colored one. No box, prompt, bullets, or echo.
+# LUKS: colored flake + white dots for typed characters. No box or prompt.
 
 Window.SetBackgroundTopColor (0, 0, 0);
 Window.SetBackgroundBottomColor (0, 0, 0);
@@ -62,7 +62,10 @@ color_flake = Image ("nix-snowflake.png");
 watermark.image = white_flake;
 watermark.sprite = Sprite (white_flake);
 
+bullet.image = Image ("dot.png");
+bullet.gap = 4;
 status = "normal";
+throbber.skip = 0;
 
 fun place_bgrt ()
   {
@@ -94,17 +97,61 @@ fun set_watermark (image)
     place_watermark ();
   }
 
+fun place_bullets (count)
+  {
+    local.index;
+    local.total_width;
+    local.start_x;
+    local.y;
+    local.step;
+
+    step = bullet.image.GetWidth () + bullet.gap;
+    if (count > 0)
+      {
+        total_width = count * bullet.image.GetWidth () + (count - 1) * bullet.gap;
+      }
+    else
+      {
+        total_width = 0;
+      }
+    start_x = Window.GetX () + Window.GetWidth () / 2 - total_width / 2;
+    y = Window.GetY () + aligned (0.7, Window.GetHeight (), throbber.images[1].GetHeight ()) + throbber.images[1].GetHeight () + 24;
+
+    for (index = 0; bullet.sprites[index] || index < count; index++)
+      {
+        if (!bullet.sprites[index])
+          {
+            bullet.sprites[index] = Sprite (bullet.image);
+          }
+        if (index < count)
+          {
+            bullet.sprites[index].SetPosition (start_x + index * step, y, 30);
+            bullet.sprites[index].SetOpacity (1);
+          }
+        else
+          {
+            bullet.sprites[index].SetOpacity (0);
+          }
+      }
+  }
+
 fun refresh_callback ()
   {
-    if (throbber.count > 0)
+    # Script refresh is ~2x the two-step throbber, so advance every other tick.
+    throbber.skip = throbber.skip + 1;
+    if (throbber.skip >= 2)
       {
-        throbber.frame = throbber.frame + 1;
-        if (throbber.frame > throbber.count)
+        throbber.skip = 0;
+        if (throbber.count > 0)
           {
-            throbber.frame = 1;
+            throbber.frame = throbber.frame + 1;
+            if (throbber.frame > throbber.count)
+              {
+                throbber.frame = 1;
+              }
+            throbber.sprite.SetImage (throbber.images[throbber.frame]);
+            place_throbber ();
           }
-        throbber.sprite.SetImage (throbber.images[throbber.frame]);
-        place_throbber ();
       }
     place_bgrt ();
     place_watermark ();
@@ -116,13 +163,14 @@ fun display_normal_callback ()
   {
     global.status = "normal";
     set_watermark (white_flake);
+    place_bullets (0);
   }
 
 fun display_password_callback (prompt, bullets)
   {
-    # prompt / bullets ignored: no visible typing feedback
     global.status = "password";
     set_watermark (color_flake);
+    place_bullets (bullets);
   }
 
 fun display_question_callback (prompt, entry)

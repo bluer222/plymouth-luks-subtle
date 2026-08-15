@@ -22,7 +22,7 @@ stdenvNoCC.mkDerivation {
     themeDir=$out/share/plymouth/themes/nix-flake
     mkdir -p "$themeDir"
 
-    cp nix-flake.plymouth nix-flake.script "$themeDir"
+    cp nix-flake.plymouth nix-flake.script dot.png "$themeDir"
 
     ln -s /sys/firmware/acpi/bgrt/image "$themeDir/bgrt-image"
 
