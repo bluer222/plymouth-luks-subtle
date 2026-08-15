@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=nix-flake
+Description=BGRT layout with a silent LUKS prompt (colored Nix flake, no password box)
+ModuleName=script
+
+[script]
+ImageDir=@THEME_DIR@
+ScriptFile=@THEME_DIR@/nix-flake.script

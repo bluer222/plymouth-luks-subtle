@@ -1,0 +1,153 @@
+# Reproduce the two-step BGRT theme:
+#   firmware logo at ACPI BGRT x/y offsets
+#   throbber at HorizontalAlignment=.5, VerticalAlignment=.7
+#   watermark (Nix flake) at WatermarkHorizontalAlignment=.5, WatermarkVerticalAlignment=.96
+# LUKS: swap the white flake for the colored one. No box, prompt, bullets, or echo.
+
+Window.SetBackgroundTopColor (0, 0, 0);
+Window.SetBackgroundBottomColor (0, 0, 0);
+
+# Substituted from /sys/firmware/acpi/bgrt/{xoffset,yoffset} at theme build.
+bgrt_xoffset = @BGRT_X@;
+bgrt_yoffset = @BGRT_Y@;
+
+fun aligned (align, screen, size)
+  {
+    return screen * align - size * align;
+  }
+
+fun four_digit (n)
+  {
+    if (n < 10)
+      {
+        return "000" + n;
+      }
+    else
+      {
+        if (n < 100)
+          {
+            return "00" + n;
+          }
+        else
+          {
+            if (n < 1000)
+              {
+                return "0" + n;
+              }
+            else
+              {
+                return "" + n;
+              }
+          }
+      }
+  }
+
+# Firmware splash (BMP via symlink to /sys/firmware/acpi/bgrt/image)
+bgrt.image = Image ("bgrt-image");
+bgrt.sprite = Sprite (bgrt.image);
+
+# Stock BGRT/spinner throbber (throbber-0001.png .. throbber-0030.png)
+throbber.count = 30;
+throbber.frame = 1;
+for (i = 1; i < 31; i++)
+  {
+    throbber.images[i] = Image ("throbber-" + four_digit (i) + ".png");
+  }
+
+throbber.sprite = Sprite (throbber.images[1]);
+
+white_flake = Image ("nix-snowflake-white.png");
+color_flake = Image ("nix-snowflake.png");
+
+watermark.image = white_flake;
+watermark.sprite = Sprite (white_flake);
+
+status = "normal";
+
+fun place_bgrt ()
+  {
+    bgrt.sprite.SetPosition (Window.GetX () + bgrt_xoffset, Window.GetY () + bgrt_yoffset, 0);
+  }
+
+fun place_throbber ()
+  {
+    local.image;
+    image = throbber.images[throbber.frame];
+    throbber.sprite.SetPosition (
+        Window.GetX () + aligned (0.5, Window.GetWidth (), image.GetWidth ()),
+        Window.GetY () + aligned (0.7, Window.GetHeight (), image.GetHeight ()),
+        10);
+  }
+
+fun place_watermark ()
+  {
+    watermark.sprite.SetPosition (
+        Window.GetX () + aligned (0.5, Window.GetWidth (), watermark.image.GetWidth ()),
+        Window.GetY () + aligned (0.96, Window.GetHeight (), watermark.image.GetHeight ()),
+        20);
+  }
+
+fun set_watermark (image)
+  {
+    watermark.image = image;
+    watermark.sprite.SetImage (image);
+    place_watermark ();
+  }
+
+fun refresh_callback ()
+  {
+    if (throbber.count > 0)
+      {
+        throbber.frame = throbber.frame + 1;
+        if (throbber.frame > throbber.count)
+          {
+            throbber.frame = 1;
+          }
+        throbber.sprite.SetImage (throbber.images[throbber.frame]);
+        place_throbber ();
+      }
+    place_bgrt ();
+    place_watermark ();
+  }
+
+Plymouth.SetRefreshFunction (refresh_callback);
+
+fun display_normal_callback ()
+  {
+    global.status = "normal";
+    set_watermark (white_flake);
+  }
+
+fun display_password_callback (prompt, bullets)
+  {
+    # prompt / bullets ignored: no visible typing feedback
+    global.status = "password";
+    set_watermark (color_flake);
+  }
+
+fun display_question_callback (prompt, entry)
+  {
+    global.status = "password";
+    set_watermark (color_flake);
+  }
+
+fun display_message_callback (text)
+  {
+  }
+
+fun hide_message_callback (text)
+  {
+  }
+
+Plymouth.SetDisplayNormalFunction (display_normal_callback);
+Plymouth.SetDisplayPasswordFunction (display_password_callback);
+Plymouth.SetDisplayQuestionFunction (display_question_callback);
+Plymouth.SetDisplayMessageFunction (display_message_callback);
+Plymouth.SetHideMessageFunction (hide_message_callback);
+
+place_bgrt ();
+if (throbber.count > 0)
+  {
+    place_throbber ();
+  }
+place_watermark ();
